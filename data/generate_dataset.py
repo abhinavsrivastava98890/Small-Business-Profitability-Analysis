@@ -62,16 +62,21 @@ def generate_transactions():
     for i in range(1, TOTAL_TRANSACTIONS + 1):
         txn_id = f"TXN-2025-{i:04d}"
         
-        # Spread dates randomly across 2025
-        day_offset = random.randint(0, 364)
-        txn_date = START_DATE + timedelta(days=day_offset)
+        # Seasonal date weighting (festive shopping peak in Q4: Oct-Dec)
+        month = random.choices(
+            range(1, 13),
+            weights=[0.07, 0.06, 0.08, 0.07, 0.08, 0.08, 0.08, 0.09, 0.09, 0.12, 0.14, 0.14]
+        )[0]
+        day = random.randint(1, 28 if month == 2 else 30)
+        txn_date = datetime(2025, month, day)
         
         prod = random.choice(CATALOG)
         prod_id, prod_name, category, base_cost, base_price = prod
         
         # Small cost fluctuation (+/- 4%)
         cost = round(base_cost * random.uniform(0.96, 1.04), 2)
-        price = round(base_price, 2)
+        # Retail pricing variation across customer batches
+        price = round(base_price * random.uniform(0.99, 1.01), 2)
         
         # Quantity
         if category in ["Stationery", "Personal Care"]:
