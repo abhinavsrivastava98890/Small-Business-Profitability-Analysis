@@ -2,6 +2,8 @@
 Plotting functions using Matplotlib to generate project charts:
 1. Category-wise Revenue vs Profit
 2. Monthly Profitability and Revenue Trend
+3. Discount Impact on Profit Margin
+4. Top 5 vs Bottom 5 Products by Profit Margin
 """
 
 import os
@@ -99,7 +101,89 @@ def plot_monthly_trends(df: pd.DataFrame, save_path: str = None):
         return save_path
     return fig
 
-def generate_macro_charts():
+def plot_discount_impact(df: pd.DataFrame, save_path: str = None):
+    valid_sales = df[df["Return_Status"] == "No"].copy()
+    
+    bracket_summary = valid_sales.groupby("Discount_Bracket", observed=False).agg({
+        "Profit_Margin_Pct": "mean",
+        "Net_Revenue": "sum",
+        "Net_Profit": "sum"
+    }).reset_index()
+    
+    bracket_summary["Realized_Margin"] = (bracket_summary["Net_Profit"] / bracket_summary["Net_Revenue"]) * 100
+    
+    fig, ax = plt.subplots(figsize=(9, 5.5), dpi=300)
+    
+    brackets = bracket_summary["Discount_Bracket"].astype(str)
+    margins = bracket_summary["Realized_Margin"]
+    colors = ["#2ca02c", "#70b028", "#d4ac0d", "#e67e22", "#d9534f"]
+    
+    bars = ax.bar(brackets, margins, color=colors, width=0.55, edgecolor="#444444")
+    
+    ax.set_title("Realized Profit Margin (%) by Discount Tier", fontsize=13, fontweight="bold", pad=12)
+    ax.set_xlabel("Discount Tier", fontsize=10, labelpad=8)
+    ax.set_ylabel("Realized Profit Margin (%)", fontsize=10, labelpad=8)
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    
+    for bar in bars:
+        h = bar.get_height()
+        ax.annotate(f"{h:.1f}%",
+                    xy=(bar.get_x() + bar.get_width() / 2, h),
+                    xytext=(0, 4),
+                    textcoords="offset points",
+                    ha="center", va="bottom", fontsize=9.5, fontweight="bold")
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+        return save_path
+    return fig
+
+def plot_product_rankings(df: pd.DataFrame, save_path: str = None):
+    valid_sales = df[df["Return_Status"] == "No"].copy()
+    
+    prod_summary = valid_sales.groupby(["Product_Name", "Category"]).agg({
+        "Net_Revenue": "sum",
+        "Net_Profit": "sum"
+    }).reset_index()
+    
+    prod_summary["Margin_Pct"] = (prod_summary["Net_Profit"] / prod_summary["Net_Revenue"]) * 100
+    prod_summary = prod_summary.sort_values("Margin_Pct", ascending=False)
+    
+    top_5 = prod_summary.head(5).copy()
+    bottom_5 = prod_summary.tail(5).copy()
+    combined = pd.concat([bottom_5, top_5]).reset_index(drop=True)
+    
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
+    
+    y_pos = np.arange(len(combined))
+    colors = ["#e74c3c" if m < 35 else "#27ae60" for m in combined["Margin_Pct"]]
+    
+    bars = ax.barh(y_pos, combined["Margin_Pct"], color=colors, height=0.6, edgecolor="#444444")
+    
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(combined["Product_Name"], fontsize=9)
+    ax.set_xlabel("Profit Margin (%)", fontsize=10, labelpad=8)
+    ax.set_title("Product Margin Comparison: Top 5 vs Bottom 5", fontsize=13, fontweight="bold", pad=12)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    
+    for bar, margin in zip(bars, combined["Margin_Pct"]):
+        w = bar.get_width()
+        ax.annotate(f"{margin:.1f}%",
+                    xy=(w, bar.get_y() + bar.get_height() / 2),
+                    xytext=(5, 0),
+                    textcoords="offset points",
+                    ha="left", va="center", fontsize=8.5)
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+        return save_path
+    return fig
+
+def generate_all_charts():
     data_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "small_business_sales.csv")
     from clean_data import validate_and_clean_data
     from metrics import enrich_sales_dataframe
@@ -111,7 +195,9 @@ def generate_macro_charts():
     chart_dir = setup_chart_dir()
     plot_category_revenue_profit(enriched_df, os.path.join(chart_dir, "01_category_revenue_profit.png"))
     plot_monthly_trends(enriched_df, os.path.join(chart_dir, "02_monthly_profit_trend.png"))
-    print("Macro trend charts generated successfully.")
+    plot_discount_impact(enriched_df, os.path.join(chart_dir, "03_discount_vs_profit_margin.png"))
+    plot_product_rankings(enriched_df, os.path.join(chart_dir, "04_top_bottom_products_margin.png"))
+    print("Charts generated successfully.")
 
 if __name__ == "__main__":
-    generate_macro_charts()
+    generate_all_charts()
