@@ -1,13 +1,13 @@
 """
 Data cleaning and preprocessing routines.
-Handles null values, deduplication, and date parsing.
+Handles null values, date parsing, and discount grouping.
 """
 
 import pandas as pd
 import numpy as np
 
 def validate_and_clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Cleans types, checks missing values, and adds date features."""
+    """Cleans types, checks missing values, and adds date/discount features."""
     clean_df = df.copy()
     
     clean_df = clean_df.drop_duplicates(subset=["Transaction_ID"])
@@ -25,4 +25,21 @@ def validate_and_clean_data(df: pd.DataFrame) -> pd.DataFrame:
     clean_df["Year_Month"] = clean_df["Date"].dt.strftime("%Y-%m")
     clean_df["Quarter"] = "Q" + clean_df["Date"].dt.quarter.astype(str)
     
+    # Discount tiers
+    bins = [-1, 0, 10, 20, 30, 100]
+    labels = ["No Discount (0%)", "Low (1-10%)", "Moderate (11-20%)", "High (21-30%)", "Deep (>30%)"]
+    clean_df["Discount_Bracket"] = pd.cut(clean_df["Discount_Percent"], bins=bins, labels=labels)
+    
     return clean_df
+
+def assign_discount_tier(discount_pct: float) -> str:
+    """Categorizes raw discount percent into human-readable tier label."""
+    if discount_pct <= 0:
+        return "No Discount (0%)"
+    elif discount_pct <= 10:
+        return "Low (1-10%)"
+    elif discount_pct <= 20:
+        return "Moderate (11-20%)"
+    elif discount_pct <= 30:
+        return "High (21-30%)"
+    return "Deep (>30%)"
